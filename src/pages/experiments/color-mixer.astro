@@ -1,0 +1,539 @@
+---
+// src/pages/experiments/color-mixer.astro
+// 7-channel LED color mixer (RGBWAUV). Additive sRGB approximation —
+// each channel contributes its own base color weighted by slider value.
+// UV is represented visually as deep violet since true UV isn't displayable.
+import ExperimentLayout from "../../layouts/ExperimentLayout.astro";
+
+const title = "Color Mixer (RGBWAUV)";
+const description = "Seven-channel LED blend — slide red, green, blue, white, amber, lime, and UV to dial in a custom color. Hex, RGB, and raw channel values update live.";
+---
+<ExperimentLayout title={title} description={description}>
+  <section class="mixer">
+    <header class="mixer__intro">
+      <p class="eyebrow">rgbwauv · 7 channels · additive mix</p>
+      <h1>Color Mixer</h1>
+      <p class="lead">The slider layout you'd see on a stage-lighting console — RGB plus <em>white</em>, <em>amber</em>, <em>lime</em>, and <em>UV</em>. Each channel adds its own wavelength to the pot.</p>
+    </header>
+
+    <div class="mixer__grid">
+      <!-- LEFT: sliders -->
+      <div class="console" aria-label="Channel sliders">
+        <!-- channels injected here at build time -->
+        <div class="channel" style="--chan-color: #ff2a2a">
+          <div class="channel__top">
+            <span class="channel__code">R</span>
+            <span class="channel__name">Red</span>
+            <span class="channel__val mono" data-ch-val="r">0</span>
+          </div>
+          <input type="range" min="0" max="255" value="0" class="slider" data-ch="r" aria-label="Red" />
+        </div>
+        <div class="channel" style="--chan-color: #2aff5e">
+          <div class="channel__top">
+            <span class="channel__code">G</span>
+            <span class="channel__name">Green</span>
+            <span class="channel__val mono" data-ch-val="g">0</span>
+          </div>
+          <input type="range" min="0" max="255" value="0" class="slider" data-ch="g" aria-label="Green" />
+        </div>
+        <div class="channel" style="--chan-color: #3a7bff">
+          <div class="channel__top">
+            <span class="channel__code">B</span>
+            <span class="channel__name">Blue</span>
+            <span class="channel__val mono" data-ch-val="b">0</span>
+          </div>
+          <input type="range" min="0" max="255" value="0" class="slider" data-ch="b" aria-label="Blue" />
+        </div>
+        <div class="channel" style="--chan-color: #f4f6fb">
+          <div class="channel__top">
+            <span class="channel__code">W</span>
+            <span class="channel__name">White</span>
+            <span class="channel__val mono" data-ch-val="w">0</span>
+          </div>
+          <input type="range" min="0" max="255" value="0" class="slider" data-ch="w" aria-label="White" />
+        </div>
+        <div class="channel" style="--chan-color: #ffb000">
+          <div class="channel__top">
+            <span class="channel__code">A</span>
+            <span class="channel__name">Amber</span>
+            <span class="channel__val mono" data-ch-val="a">0</span>
+          </div>
+          <input type="range" min="0" max="255" value="0" class="slider" data-ch="a" aria-label="Amber" />
+        </div>
+        <div class="channel" style="--chan-color: #bfff3a">
+          <div class="channel__top">
+            <span class="channel__code">L</span>
+            <span class="channel__name">Lime</span>
+            <span class="channel__val mono" data-ch-val="l">0</span>
+          </div>
+          <input type="range" min="0" max="255" value="0" class="slider" data-ch="l" aria-label="Lime" />
+        </div>
+        <div class="channel" style="--chan-color: #6a2bd6">
+          <div class="channel__top">
+            <span class="channel__code">UV</span>
+            <span class="channel__name">Ultraviolet</span>
+            <span class="channel__val mono" data-ch-val="uv">0</span>
+          </div>
+          <input type="range" min="0" max="255" value="0" class="slider" data-ch="uv" aria-label="Ultraviolet" />
+        </div>
+
+        <div class="console__actions">
+          <button type="button" class="btn btn--ghost" data-action="reset">Reset</button>
+          <button type="button" class="btn btn--ghost" data-action="random">Randomize</button>
+        </div>
+      </div>
+
+      <!-- RIGHT: preview + readouts + presets -->
+      <div class="output">
+        <div class="swatch" id="swatch" aria-live="polite">
+          <div class="swatch__grain" aria-hidden="true"></div>
+        </div>
+
+        <div class="readouts">
+          <div class="readout">
+            <div class="readout__label">Hex</div>
+            <div class="readout__row">
+              <code class="readout__value mono" id="hex-val">#000000</code>
+              <button type="button" class="copy" data-copy="hex-val" aria-label="Copy hex">Copy</button>
+            </div>
+          </div>
+          <div class="readout">
+            <div class="readout__label">RGB</div>
+            <div class="readout__row">
+              <code class="readout__value mono" id="rgb-val">rgb(0, 0, 0)</code>
+              <button type="button" class="copy" data-copy="rgb-val" aria-label="Copy rgb">Copy</button>
+            </div>
+          </div>
+          <div class="readout">
+            <div class="readout__label">RGBWAUV <span class="dim">(DMX · 0–255)</span></div>
+            <div class="readout__row">
+              <code class="readout__value mono" id="dmx-val">0, 0, 0, 0, 0, 0, 0</code>
+              <button type="button" class="copy" data-copy="dmx-val" aria-label="Copy DMX values">Copy</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="presets">
+          <p class="presets__label">Presets</p>
+          <div class="presets__grid">
+            <button type="button" class="preset" data-preset="warm-white">Warm White</button>
+            <button type="button" class="preset" data-preset="cool-white">Cool White</button>
+            <button type="button" class="preset" data-preset="daylight">Daylight</button>
+            <button type="button" class="preset" data-preset="amber-wash">Amber Wash</button>
+            <button type="button" class="preset" data-preset="sunrise">Sunrise</button>
+            <button type="button" class="preset" data-preset="blacklight">Blacklight</button>
+            <button type="button" class="preset" data-preset="lagoon">Lagoon</button>
+            <button type="button" class="preset" data-preset="hot-pink">Hot Pink</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <footer class="mixer__footnote">
+      <p>
+        Additive mix in sRGB — so amber, lime, and UV are visual approximations of how those LEDs sit on screen, not true spectral output.
+        White is a neutral boost that desaturates the result the way a W channel does on a real fixture. Values are DMX-style 0–255.
+      </p>
+    </footer>
+  </section>
+
+  <style>
+    .mixer {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 2.5rem 1.25rem 4rem;
+    }
+    .mixer__intro { margin-bottom: 2rem; }
+    .mixer__intro .eyebrow {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.72rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--ink-dim, #6b6774);
+      margin: 0 0 0.5rem;
+    }
+    .mixer__intro h1 {
+      font-family: "Space Grotesk", system-ui, sans-serif;
+      font-size: clamp(2.25rem, 5vw, 3.25rem);
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      margin: 0 0 0.75rem;
+      line-height: 1;
+    }
+    .mixer__intro .lead {
+      max-width: 52ch;
+      font-size: 1.05rem;
+      line-height: 1.5;
+      color: var(--ink-muted, #3f3b46);
+      margin: 0;
+    }
+    .mixer__intro em {
+      font-style: normal;
+      background: linear-gradient(90deg, var(--sky, #60c0ff), var(--violet, #a678ff));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      font-weight: 500;
+    }
+
+    .mixer__grid {
+      display: grid;
+      grid-template-columns: minmax(280px, 1fr) minmax(280px, 1.15fr);
+      gap: 1.75rem;
+      align-items: start;
+    }
+
+    /* --------  CONSOLE (left column)  -------- */
+    .console {
+      background: var(--surface, #f6f5fa);
+      border: 1px solid var(--line, rgba(0, 0, 0, 0.08));
+      border-radius: 18px;
+      padding: 1.25rem 1.25rem 1rem;
+      display: grid;
+      gap: 0.9rem;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.6) inset, 0 12px 30px -18px rgba(0,0,0,0.25);
+    }
+
+    .channel { display: grid; gap: 0.35rem; }
+    .channel__top {
+      display: flex;
+      align-items: baseline;
+      gap: 0.6rem;
+      font-size: 0.82rem;
+    }
+    .channel__code {
+      display: inline-block;
+      min-width: 2.25rem;
+      padding: 2px 7px;
+      border-radius: 6px;
+      background: var(--chan-color);
+      color: #0c0b12;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-weight: 700;
+      font-size: 0.72rem;
+      letter-spacing: 0.04em;
+      text-align: center;
+      box-shadow: 0 0 0 1px rgba(0,0,0,0.06), 0 6px 14px -8px var(--chan-color);
+    }
+    .channel__name { color: var(--ink, #1a1820); font-weight: 500; }
+    .channel__val {
+      margin-left: auto;
+      color: var(--ink-dim, #6b6774);
+      font-size: 0.82rem;
+      min-width: 2.5rem;
+      text-align: right;
+    }
+
+    /* Range styling */
+    .slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 14px;
+      background: linear-gradient(
+        to right,
+        color-mix(in srgb, var(--chan-color) 0%, rgba(0,0,0,0.08)) 0%,
+        var(--chan-color) 100%
+      );
+      border-radius: 999px;
+      outline: none;
+      cursor: pointer;
+      box-shadow: inset 0 1px 2px rgba(0,0,0,0.15);
+    }
+    .slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 2px solid var(--chan-color);
+      box-shadow: 0 2px 10px var(--chan-color), 0 0 0 1px rgba(0,0,0,0.08);
+      cursor: grab;
+      transition: transform 0.08s ease-out;
+    }
+    .slider::-webkit-slider-thumb:active { cursor: grabbing; transform: scale(1.08); }
+    .slider::-moz-range-thumb {
+      width: 22px; height: 22px;
+      border-radius: 50%;
+      background: #ffffff;
+      border: 2px solid var(--chan-color);
+      box-shadow: 0 2px 10px var(--chan-color);
+      cursor: grab;
+    }
+    .slider:focus-visible { outline: 2px solid var(--sky, #60c0ff); outline-offset: 4px; }
+
+    .console__actions {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.35rem;
+      padding-top: 0.85rem;
+      border-top: 1px dashed var(--line, rgba(0,0,0,0.08));
+    }
+
+    /* --------  OUTPUT (right column)  -------- */
+    .output {
+      display: grid;
+      gap: 1.25rem;
+      position: sticky;
+      top: 1rem;
+    }
+
+    .swatch {
+      position: relative;
+      aspect-ratio: 4 / 3;
+      border-radius: 20px;
+      background: var(--current, #0c0b12);
+      box-shadow:
+        0 0 60px 6px color-mix(in srgb, var(--current, #0c0b12) 55%, transparent),
+        inset 0 0 0 1px rgba(255,255,255,0.04);
+      transition: background 120ms linear, box-shadow 180ms linear;
+      overflow: hidden;
+    }
+    .swatch__grain {
+      position: absolute; inset: 0;
+      pointer-events: none;
+      mix-blend-mode: overlay;
+      opacity: 0.35;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.25 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+    }
+
+    .readouts { display: grid; gap: 0.6rem; }
+    .readout {
+      background: var(--surface, #f6f5fa);
+      border: 1px solid var(--line, rgba(0,0,0,0.08));
+      border-radius: 12px;
+      padding: 0.7rem 0.9rem;
+    }
+    .readout__label {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.68rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--ink-dim, #6b6774);
+      margin-bottom: 0.35rem;
+    }
+    .readout__label .dim { opacity: 0.6; text-transform: none; letter-spacing: 0.05em; }
+    .readout__row {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .readout__value {
+      flex: 1;
+      font-size: 1rem;
+      color: var(--ink, #1a1820);
+      background: transparent;
+      padding: 0;
+      word-break: break-all;
+    }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+    .copy, .btn, .preset {
+      font: inherit;
+      cursor: pointer;
+      border-radius: 999px;
+      padding: 0.4rem 0.9rem;
+      font-size: 0.82rem;
+      background: var(--ink, #1a1820);
+      color: #fafafc;
+      border: 1px solid transparent;
+      transition: transform 0.08s, background 0.12s, border-color 0.12s;
+    }
+    .copy { padding: 0.28rem 0.75rem; font-size: 0.72rem; }
+    .copy:hover, .preset:hover, .btn:hover { transform: translateY(-1px); }
+    .copy.copied { background: var(--lime, #9bd64a); color: #0c0b12; }
+    .btn--ghost {
+      background: transparent;
+      color: var(--ink, #1a1820);
+      border-color: var(--line, rgba(0,0,0,0.12));
+    }
+    .btn--ghost:hover { border-color: var(--ink, #1a1820); }
+
+    .presets__label {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--ink-dim, #6b6774);
+      margin: 0.25rem 0 0.5rem;
+    }
+    .presets__grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+    }
+    .preset {
+      background: var(--surface, #f6f5fa);
+      color: var(--ink, #1a1820);
+      border-color: var(--line, rgba(0,0,0,0.08));
+    }
+    .preset:hover { border-color: var(--sky, #60c0ff); }
+
+    .mixer__footnote {
+      margin-top: 2.5rem;
+      padding-top: 1.25rem;
+      border-top: 1px dashed var(--line, rgba(0,0,0,0.12));
+      color: var(--ink-dim, #6b6774);
+      font-size: 0.88rem;
+      line-height: 1.6;
+      max-width: 64ch;
+    }
+
+    @media (max-width: 780px) {
+      .mixer__grid { grid-template-columns: 1fr; }
+      .output { position: static; order: -1; }
+      .swatch { aspect-ratio: 16 / 9; }
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .console, .readout, .preset {
+        background: rgba(255,255,255,0.04);
+        border-color: rgba(255,255,255,0.08);
+      }
+      .channel__name, .readout__value { color: var(--ink, #ece9f2); }
+      .btn--ghost { color: var(--ink, #ece9f2); border-color: rgba(255,255,255,0.14); }
+      .btn--ghost:hover { border-color: rgba(255,255,255,0.4); }
+      .copy { background: #ece9f2; color: #0c0b12; }
+      .copy.copied { background: var(--lime, #9bd64a); }
+      .preset:hover { border-color: var(--sky, #60c0ff); }
+      .slider { background: linear-gradient(to right, rgba(255,255,255,0.08), var(--chan-color)); }
+      .mixer__footnote { border-top-color: rgba(255,255,255,0.1); }
+    }
+  </style>
+
+  <script is:inline>
+    (function () {
+      // Channel order matters — matches DMX output and the slider DOM order
+      const CHANNELS = [
+        { key: "r",  name: "Red",         rgb: [255,   0,   0] },
+        { key: "g",  name: "Green",       rgb: [  0, 255,   0] },
+        { key: "b",  name: "Blue",        rgb: [  0,   0, 255] },
+        { key: "w",  name: "White",       rgb: [255, 255, 255] },
+        { key: "a",  name: "Amber",       rgb: [255, 176,   0] },   // ~590nm
+        { key: "l",  name: "Lime",        rgb: [191, 255,   0] },   // ~555nm
+        { key: "uv", name: "Ultraviolet", rgb: [ 90,  20, 180] },   // deep violet stand-in
+      ];
+
+      // value preset tables, one number per channel in R G B W A L UV order
+      const PRESETS = {
+        "warm-white":  [  0,   0,   0, 210,  70,   0,   0],
+        "cool-white":  [  0,   0,  20, 235,   0,   0,   0],
+        "daylight":    [  0,   0,   0, 255,   0,   0,   0],
+        "amber-wash":  [ 40,   0,   0,   0, 255,   0,   0],
+        "sunrise":     [210,  10,   0,  40, 190,  30,   0],
+        "blacklight":  [  0,   0,  60,   0,   0,   0, 255],
+        "lagoon":      [  0, 120, 180,  20,   0,  60,   0],
+        "hot-pink":    [255,   0, 140,  40,   0,   0,  40],
+      };
+
+      const sliders = Array.from(document.querySelectorAll(".slider"));
+      const valSpans = Object.fromEntries(
+        Array.from(document.querySelectorAll("[data-ch-val]")).map(el => [el.dataset.chVal, el])
+      );
+      const swatch = document.getElementById("swatch");
+      const hexEl  = document.getElementById("hex-val");
+      const rgbEl  = document.getElementById("rgb-val");
+      const dmxEl  = document.getElementById("dmx-val");
+
+      function readValues() {
+        // Keep DOM order aligned with CHANNELS by looking up by data-ch
+        return CHANNELS.map(c => {
+          const el = sliders.find(s => s.dataset.ch === c.key);
+          return el ? Number(el.value) : 0;
+        });
+      }
+
+      function mixToSrgb(values) {
+        let r = 0, g = 0, b = 0;
+        for (let i = 0; i < CHANNELS.length; i++) {
+          const w = values[i] / 255;
+          r += CHANNELS[i].rgb[0] * w;
+          g += CHANNELS[i].rgb[1] * w;
+          b += CHANNELS[i].rgb[2] * w;
+        }
+        return [
+          Math.max(0, Math.min(255, Math.round(r))),
+          Math.max(0, Math.min(255, Math.round(g))),
+          Math.max(0, Math.min(255, Math.round(b))),
+        ];
+      }
+
+      function toHex(rgb) {
+        return "#" + rgb.map(v => v.toString(16).padStart(2, "0")).join("").toUpperCase();
+      }
+
+      function update() {
+        const values = readValues();
+        const rgb = mixToSrgb(values);
+        const hex = toHex(rgb);
+
+        swatch.style.setProperty("--current", hex);
+        hexEl.textContent = hex;
+        rgbEl.textContent = "rgb(" + rgb.join(", ") + ")";
+        dmxEl.textContent = values.join(", ");
+
+        // update per-slider value readouts
+        CHANNELS.forEach((c, i) => {
+          const span = valSpans[c.key];
+          if (span) span.textContent = String(values[i]);
+        });
+      }
+
+      function setValues(arr) {
+        CHANNELS.forEach((c, i) => {
+          const el = sliders.find(s => s.dataset.ch === c.key);
+          if (el) el.value = String(arr[i] ?? 0);
+        });
+        update();
+      }
+
+      // wire sliders
+      sliders.forEach(s => s.addEventListener("input", update));
+
+      // wire action buttons
+      document.querySelectorAll("[data-action]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const action = btn.dataset.action;
+          if (action === "reset") setValues([0,0,0,0,0,0,0]);
+          if (action === "random") {
+            setValues(Array.from({ length: 7 }, () => Math.floor(Math.random() * 256)));
+          }
+        });
+      });
+
+      // wire preset buttons
+      document.querySelectorAll("[data-preset]").forEach(btn => {
+        btn.addEventListener("click", () => {
+          const arr = PRESETS[btn.dataset.preset];
+          if (arr) setValues(arr);
+        });
+      });
+
+      // wire copy buttons
+      document.querySelectorAll(".copy").forEach(btn => {
+        btn.addEventListener("click", async () => {
+          const target = document.getElementById(btn.dataset.copy);
+          if (!target) return;
+          const text = target.textContent || "";
+          try {
+            await navigator.clipboard.writeText(text);
+          } catch (_) {
+            // fallback: select the text so user can manually copy
+            const range = document.createRange();
+            range.selectNodeContents(target);
+            const sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(range);
+          }
+          btn.classList.add("copied");
+          const prev = btn.textContent;
+          btn.textContent = "Copied";
+          setTimeout(() => { btn.classList.remove("copied"); btn.textContent = prev; }, 900);
+        });
+      });
+
+      // initialise with a soft sunset so the page isn't dead-black on load
+      setValues([140, 30, 10, 30, 180, 40, 10]);
+    })();
+  </script>
+</ExperimentLayout>
