@@ -32,4 +32,11 @@ export const experiments = [
     date: '2026-04',
     tone: 'lime',
   },
+{
+  slug: "color-mixer",
+  title: "Color Mixer (RGBWAUV)",
+  description: "Seven-channel LED blend — drag red, green, blue, white, amber, lime, and UV until you land on a color you like. Hex, RGB, and DMX values update live.",
+  tags: ["color", "lighting", "sliders", "interactive"],
+  date: "2026-04-20",
+  tone: "sky",
 ];
