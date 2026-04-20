@@ -570,46 +570,75 @@ const title = "Economic News Globe — Workshop by Sam";
       renderArticles(h, result.articles, result.isSample, result.note);
     });
   }
+ async function fetchGdelt(h) {
+  // Country match: articles FROM the country OR ABOUT the country.
+  // `locationcc:` catches e.g. Reuters writing about Argentina, which
+  // `sourcecountry:` alone would miss.
+  const country = `(sourcecountry:${h.gdelt} OR locationcc:${h.gdelt})`;
 
-  async function fetchGdelt(h) {
-    // Query: country-sourced AND economy/finance keywords, last week, newest first
-    const q = `sourcecountry:${h.gdelt} (economy OR inflation OR markets OR finance OR "central bank" OR business)`;
+  // Wider keyword net than before.
+  const econ =
+    '(economy OR economic OR markets OR finance OR financial OR inflation ' +
+    'OR business OR trade OR "central bank" OR stocks OR currency OR GDP ' +
+    'OR "interest rate" OR bank OR bond OR investment OR recession)';
+
+  // Two query tiers: first economic-filtered, then any news from/about the
+  // country. Whichever one returns articles first wins.
+  const tiers = [
+    { q: `${country} ${econ}`, note: null },
+    { q: country,              note: `No recent economic coverage — showing general news from ${h.name}.` },
+  ];
+
+  for (let i = 0; i < tiers.length; i++) {
+    const { q, note } = tiers[i];
     const url =
       "https://api.gdeltproject.org/api/v2/doc/doc" +
       "?query=" + encodeURIComponent(q) +
-      "&mode=artlist" +
-      "&maxrecords=10" +
-      "&format=json" +
-      "&sort=datedesc" +
-      "&timespan=1w";
+      "&mode=artlist&maxrecords=10&format=json&sort=datedesc&timespan=2w";
+
+    // Helpful for debugging from devtools — per-country query URL + tier.
+    console.debug(`[globe] ${h.name} tier ${i + 1}:`, url);
 
     try {
       const res = await fetch(url);
-      if (!res.ok) throw new Error("GDELT HTTP " + res.status);
-      // GDELT occasionally returns non-JSON when rate limited; guard it.
+      if (!res.ok) {
+        console.warn(`[globe] ${h.name} HTTP ${res.status}`);
+        continue;
+      }
       const text = await res.text();
       let data;
       try { data = JSON.parse(text); }
-      catch (_) { throw new Error("GDELT returned non-JSON (likely rate-limited)"); }
+      catch (_) {
+        console.warn(`[globe] ${h.name} non-JSON response (likely rate-limited)`);
+        continue;
+      }
 
       const articles = (data.articles || [])
         .filter(a => a.title && a.url)
         .map(a => ({
           source: a.domain || a.sourcecountry || "GDELT",
           title: a.title,
-          description: null, // GDELT artlist doesn't carry descriptions
+          description: null,           // GDELT artlist carries no descriptions
           url: a.url,
           publishedAt: parseGdeltDate(a.seendate),
           image: a.socialimage || null,
         }));
 
-      if (!articles.length) {
-        return {
-          articles: SAMPLE_HEADLINES[h.code] || [],
-          isSample: true,
-          note: `No recent GDELT hits for ${h.name} — showing samples.`,
-        };
+      if (articles.length) {
+        return { articles, isSample: false, note };
       }
+    } catch (err) {
+      console.warn(`[globe] ${h.name} fetch error:`, err && err.message || err);
+    }
+  }
+
+  // Both tiers came up empty — fall back to the curated sample headlines.
+  return {
+    articles: SAMPLE_HEADLINES[h.code] || [],
+    isSample: true,
+    note: `No recent GDELT hits for ${h.name} — showing samples.`,
+  };
+}
       return { articles, isSample: false, note: null };
     } catch (err) {
       const msg = String(err && err.message || err);
