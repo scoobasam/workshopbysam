@@ -6,8 +6,8 @@ import { defineConfig } from 'astro/config';
 // If deploying to a user/org root site (https://<user>.github.io/),
 // or to a custom domain, set `base: '/'` and update `site` accordingly.
 export default defineConfig({
-  site: 'https://scoobasam.github.io',
-  base: '/workshopbysam/',
+  site: 'https://workshopbysam.com',
+  base: '/',
   trailingSlash: 'ignore',
   build: {
     assets: '_assets',
