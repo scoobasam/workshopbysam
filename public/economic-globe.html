@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Economic News Globe</title>
+<style>
+  :root {
+    --bg: #05070d;
+    --bg-soft: #0b1220;
+    --panel: rgba(13, 20, 34, 0.88);
+    --panel-border: rgba(120, 170, 255, 0.18);
+    --accent: #6ec2ff;
+    --accent-2: #ffd37a;
+    --text: #dce6f5;
+    --text-dim: #8ea0b8;
+    --danger: #ff7070;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: radial-gradient(ellipse at center, #0b1426 0%, #02040a 70%);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    overflow: hidden;
+  }
+  #globe {
+    position: fixed; inset: 0;
+    width: 100vw; height: 100vh;
+    display: block;
+    cursor: grab;
+  }
+  #globe:active { cursor: grabbing; }
+
+  #topbar {
+    position: fixed; top: 16px; left: 16px; right: 16px;
+    display: flex; align-items: center; gap: 12px;
+    z-index: 10;
+    pointer-events: none;
+  }
+  #topbar > * { pointer-events: auto; }
+  .brand {
+    font-weight: 600; letter-spacing: 0.02em;
+    font-size: 15px;
+    padding: 8px 14px;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 999px;
+    backdrop-filter: blur(10px);
+  }
+  .brand .dot {
+    display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent); margin-right: 8px;
+    box-shadow: 0 0 10px var(--accent);
+  }
+  .apikey-wrap {
+    margin-left: auto;
+    display: flex; align-items: center; gap: 6px;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 999px;
+    padding: 4px 6px 4px 14px;
+    backdrop-filter: blur(10px);
+  }
+  .apikey-wrap label {
+    font-size: 12px; color: var(--text-dim);
+  }
+  .apikey-wrap input {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-size: 13px;
+    width: 240px;
+    font-family: inherit;
+  }
+  .apikey-wrap input::placeholder { color: #556275; }
+  .apikey-wrap button {
+    background: var(--accent);
+    border: none;
+    color: #03111f;
+    font-weight: 600;
+    font-size: 12px;
+    padding: 6px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .apikey-wrap button:hover { background: #8fd3ff; }
+  .apikey-wrap button.cleared { background: #4a5668; color: #c0cada; }
+
+  #panel {
+    position: fixed;
+    top: 72px; right: 16px; bottom: 16px;
+    width: 380px;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 14px;
+    backdrop-filter: blur(12px);
+    padding: 20px 18px 16px;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    z-index: 10;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  #panel h2 {
+    margin: 0 0 4px; font-size: 20px; font-weight: 600;
+    color: var(--text);
+  }
+  #panel .subtitle {
+    font-size: 12px; color: var(--text-dim); margin-bottom: 14px;
+    text-transform: uppercase; letter-spacing: 0.08em;
+  }
+  #panel .status {
+    font-size: 13px; color: var(--text-dim);
+    padding: 16px 0;
+  }
+  #panel .status.error {
+    color: var(--danger);
+  }
+  #news {
+    overflow-y: auto;
+    margin-right: -8px; padding-right: 8px;
+    flex: 1;
+  }
+  #news::-webkit-scrollbar { width: 6px; }
+  #news::-webkit-scrollbar-thumb { background: rgba(150,180,220,0.2); border-radius: 3px; }
+  .article {
+    display: block;
+    padding: 12px 12px;
+    margin-bottom: 10px;
+    border-radius: 10px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.05);
+    text-decoration: none;
+    color: inherit;
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .article:hover {
+    background: rgba(110, 194, 255, 0.08);
+    border-color: rgba(110, 194, 255, 0.4);
+  }
+  .article .src {
+    font-size: 11px; color: var(--accent);
+    text-transform: uppercase; letter-spacing: 0.06em;
+    margin-bottom: 4px;
+  }
+  .article .title {
+    font-size: 14px; font-weight: 500; line-height: 1.35;
+    color: var(--text); margin-bottom: 6px;
+  }
+  .article .desc {
+    font-size: 12px; color: var(--text-dim); line-height: 1.45;
+  }
+  .article .meta {
+    font-size: 11px; color: #6a7a92; margin-top: 8px;
+  }
+  .footer-note {
+    margin-top: 10px;
+    font-size: 11px;
+    color: var(--text-dim);
+    padding-top: 10px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+  .footer-note a { color: var(--accent); text-decoration: none; }
+  #tooltip {
+    position: fixed;
+    pointer-events: none;
+    background: rgba(13, 20, 34, 0.95);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 12px;
+    color: var(--text);
+    opacity: 0;
+    transform: translate(-50%, -130%);
+    transition: opacity 0.1s ease-out;
+    z-index: 20;
+    white-space: nowrap;
+  }
+  #tooltip.show { opacity: 1; }
+  #legend {
+    position: fixed; bottom: 16px; left: 16px;
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    border-radius: 10px;
+    backdrop-filter: blur(10px);
+    padding: 10px 14px;
+    font-size: 12px; color: var(--text-dim);
+    z-index: 10;
+    max-width: 340px;
+    line-height: 1.5;
+  }
+  #legend b { color: var(--text); }
+  @media (max-width: 900px) {
+    #panel { width: auto; left: 16px; top: auto; bottom: 16px; height: 40vh; }
+    #legend { display: none; }
+    .apikey-wrap input { width: 140px; }
+  }
+</style>
+</head>
+<body>
+  <div id="topbar">
+    <div class="brand"><span class="dot"></span>Economic News Globe</div>
+    <div class="apikey-wrap">
+      <label for="apikey">NewsAPI key</label>
+      <input id="apikey" type="password" placeholder="paste key or leave blank" autocomplete="off" />
+      <button id="save-key">Save</button>
+    </div>
+  </div>
+
+  <canvas id="globe"></canvas>
+
+  <div id="panel">
+    <h2 id="country-title">Select a hotspot</h2>
+    <div class="subtitle" id="country-sub">Click any glowing marker on the globe</div>
+    <div id="news">
+      <div class="status">Drag to rotate &middot; scroll to zoom &middot; click a marker for latest business headlines.</div>
+    </div>
+    <div class="footer-note" id="footer-note">
+      Using <b>sample headlines</b>. Add a free key from
+      <a href="https://newsapi.org/register" target="_blank" rel="noopener">newsapi.org</a> above for live news.
+      <br />Note: NewsAPI's free tier only works from <code>localhost</code>.
+    </div>
+  </div>
+
+  <div id="tooltip"></div>
+
+  <div id="legend">
+    <b>22 major economies</b> &middot; hotspots pulse on the globe. Click one to load the latest business headlines from that country. Your API key is stored locally in this browser only.
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script>
+  // ----------------------------------------------------------------------
+  //  HOTSPOT DATA - 22 major economies
+  //  code = ISO-3166 alpha-2 (NewsAPI country code)
+  // ----------------------------------------------------------------------
+  const HOTSPOTS = [
+    { name: "United States",   code: "us", lat: 38.9,   lon: -77.0,   city: "Washington, DC" },
+    { name: "Canada",          code: "ca", lat: 45.42,  lon: -75.70,  city: "Ottawa" },
+    { name: "Mexico",          code: "mx", lat: 19.43,  lon: -99.13,  city: "Mexico City" },
+    { name: "Brazil",          code: "br", lat: -15.79, lon: -47.88,  city: "Brasilia" },
+    { name: "Argentina",       code: "ar", lat: -34.61, lon: -58.38,  city: "Buenos Aires" },
+    { name: "United Kingdom",  code: "gb", lat: 51.51,  lon: -0.13,   city: "London" },
+    { name: "France",          code: "fr", lat: 48.86,  lon: 2.35,    city: "Paris" },
+    { name: "Germany",         code: "de", lat: 52.52,  lon: 13.40,   city: "Berlin" },
+    { name: "Italy",           code: "it", lat: 41.90,  lon: 12.50,   city: "Rome" },
+    { name: "Netherlands",     code: "nl", lat: 52.37,  lon: 4.90,    city: "Amsterdam" },
+    { name: "Switzerland",     code: "ch", lat: 47.38,  lon: 8.54,    city: "Zurich" },
+    { name: "Russia",          code: "ru", lat: 55.75,  lon: 37.62,   city: "Moscow" },
+    { name: "Turkey",          code: "tr", lat: 39.93,  lon: 32.86,   city: "Ankara" },
+    { name: "Saudi Arabia",    code: "sa", lat: 24.71,  lon: 46.67,   city: "Riyadh" },
+    { name: "UAE",             code: "ae", lat: 25.20,  lon: 55.27,   city: "Dubai" },
+    { name: "South Africa",    code: "za", lat: -25.75, lon: 28.19,   city: "Pretoria" },
+    { name: "India",           code: "in", lat: 28.61,  lon: 77.21,   city: "New Delhi" },
+    { name: "China",           code: "cn", lat: 39.90,  lon: 116.40,  city: "Beijing" },
+    { name: "Hong Kong",       code: "hk", lat: 22.32,  lon: 114.17,  city: "Hong Kong" },
+    { name: "Singapore",       code: "sg", lat: 1.35,   lon: 103.82,  city: "Singapore" },
+    { name: "Japan",           code: "jp", lat: 35.68,  lon: 139.69,  city: "Tokyo" },
+    { name: "South Korea",     code: "kr", lat: 37.57,  lon: 126.98,  city: "Seoul" },
+    { name: "Indonesia",       code: "id", lat: -6.21,  lon: 106.85,  city: "Jakarta" },
+    { name: "Australia",       code: "au", lat: -35.28, lon: 149.13,  city: "Canberra" },
+  ];
+
+  // ----------------------------------------------------------------------
+  //  SAMPLE HEADLINES - shown if no API key or API fails
+  // ----------------------------------------------------------------------
+  const SAMPLE_HEADLINES = {
+    us: [
+      { source:"Reuters", title:"Fed signals patience on rate cuts as services inflation stays sticky", description:"Policymakers emphasized data dependency and warned against premature easing." },
+      { source:"Bloomberg", title:"Tech earnings lift S&P 500 to new record", description:"Mega-cap tech beats lift sentiment despite mixed guidance from retailers." },
+      { source:"WSJ", title:"US job openings fall to three-year low", description:"Labor market cooling further supports soft-landing narrative." },
+    ],
+    cn: [
+      { source:"SCMP", title:"China unveils fresh stimulus for property sector", description:"Measures target local government debt and unfinished housing projects." },
+      { source:"Caixin", title:"Manufacturing PMI returns to expansion", description:"Export orders strengthen on Southeast Asia demand." },
+    ],
+    jp: [
+      { source:"Nikkei", title:"BOJ governor hints at further normalisation", description:"Yen steadies as markets price in another rate hike this year." },
+      { source:"Reuters", title:"Japanese wage growth hits decade high", description:"Shunto results exceed expectations across major exporters." },
+    ],
+    de: [
+      { source:"Handelsblatt", title:"German industrial output rebounds in Q1", description:"Automotive and chemicals sectors lead the recovery." },
+      { source:"DW", title:"ECB holds rates steady as inflation eases", description:"Lagarde cautious on timing of next move." },
+    ],
+    gb: [
+      { source:"FT", title:"UK inflation dips below 2% target", description:"Services inflation remains the sticky component." },
+      { source:"BBC", title:"Bank of England governor flags summer rate cut", description:"Growth forecasts nudged higher on consumer resilience." },
+    ],
+    in: [
+      { source:"Economic Times", title:"India GDP growth beats estimates at 7.8%", description:"Capex cycle and services exports drive momentum." },
+      { source:"Mint", title:"RBI keeps repo rate unchanged, holds hawkish tone", description:"Food inflation remains a concern into monsoon season." },
+    ],
+    fr: [
+      { source:"Le Monde", title:"France's business confidence edges higher", description:"Manufacturing PMI improves but remains in contraction." },
+    ],
+    it: [
+      { source:"Il Sole 24 Ore", title:"Italian bond yields fall on strong auction demand", description:"Investors shrug off fiscal concerns ahead of EU review." },
+    ],
+    nl: [
+      { source:"NL Times", title:"ASML orders surge on AI chip demand", description:"EUV backlog extends through 2027." },
+    ],
+    ch: [
+      { source:"SwissInfo", title:"SNB surprises with second rate cut", description:"Franc weakens; inflation comfortably below target." },
+    ],
+    ca: [
+      { source:"Globe and Mail", title:"Bank of Canada delivers first rate cut", description:"Housing sensitivity and cooling labour market cited as drivers." },
+    ],
+    mx: [
+      { source:"Reforma", title:"Banxico holds but flags cautious easing path", description:"Peso steady after election volatility subsides." },
+    ],
+    br: [
+      { source:"Folha", title:"Brazil's central bank signals end of cutting cycle", description:"Fiscal concerns and sticky services inflation cited." },
+    ],
+    ar: [
+      { source:"Clarin", title:"Argentina posts first quarterly budget surplus in over a decade", description:"Milei austerity package shows early fiscal results." },
+    ],
+    ru: [
+      { source:"TASS", title:"Russia raises key rate to combat inflation", description:"Central bank signals prolonged tight policy stance." },
+    ],
+    tr: [
+      { source:"Hurriyet", title:"Turkey hikes rates again as lira stabilises", description:"CBRT doubles down on orthodox policy pivot." },
+    ],
+    sa: [
+      { source:"Arab News", title:"Saudi Arabia extends voluntary oil output cuts", description:"PIF rotates capital into AI and gigaprojects." },
+    ],
+    ae: [
+      { source:"Gulf News", title:"Dubai non-oil private sector PMI hits multi-year high", description:"Tourism and real estate drive growth." },
+    ],
+    za: [
+      { source:"News24", title:"South Africa's SARB holds rates, cuts growth forecast", description:"Power supply improvements offer modest tailwind." },
+    ],
+    kr: [
+      { source:"Korea Herald", title:"Korean chip exports hit record on HBM demand", description:"Samsung and SK Hynix guide higher for memory prices." },
+    ],
+    hk: [
+      { source:"SCMP", title:"HKMA mirrors Fed stance as peg holds steady", description:"Hang Seng rallies on mainland stimulus hopes." },
+    ],
+    sg: [
+      { source:"Straits Times", title:"Singapore core inflation eases to 18-month low", description:"MAS expected to hold policy band unchanged." },
+    ],
+    id: [
+      { source:"Jakarta Post", title:"Bank Indonesia holds rates to defend rupiah", description:"Commodity exports provide cushion against global volatility." },
+    ],
+    au: [
+      { source:"AFR", title:"RBA holds rates; hawkish tone on services inflation", description:"Aussie dollar firms against greenback." },
+    ],
+  };
+
+  // ----------------------------------------------------------------------
+  //  THREE.JS SETUP
+  // ----------------------------------------------------------------------
+  const canvas = document.getElementById("globe");
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+  camera.position.set(0, 0, 3.2);
+
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+
+  // Starfield background
+  function buildStars() {
+    const g = new THREE.BufferGeometry();
+    const n = 1800;
+    const pos = new Float32Array(n * 3);
+    for (let i = 0; i < n; i++) {
+      const r = 50 + Math.random() * 50;
+      const t = Math.random() * Math.PI * 2;
+      const p = Math.acos(2 * Math.random() - 1);
+      pos[3*i]   = r * Math.sin(p) * Math.cos(t);
+      pos[3*i+1] = r * Math.sin(p) * Math.sin(t);
+      pos[3*i+2] = r * Math.cos(p);
+    }
+    g.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    const m = new THREE.PointsMaterial({ color: 0xffffff, size: 0.15, sizeAttenuation: true, transparent: true, opacity: 0.8 });
+    scene.add(new THREE.Points(g, m));
+  }
+  buildStars();
+
+  // Lights
+  scene.add(new THREE.AmbientLight(0xffffff, 0.45));
+  const sun = new THREE.DirectionalLight(0xffffff, 1.1);
+  sun.position.set(5, 3, 5);
+  scene.add(sun);
+
+  // Globe
+  const GLOBE_RADIUS = 1;
+  const globeGroup = new THREE.Group();
+  scene.add(globeGroup);
+
+  const sphereGeom = new THREE.SphereGeometry(GLOBE_RADIUS, 64, 64);
+  // Base material - blue fallback
+  const baseMat = new THREE.MeshPhongMaterial({
+    color: 0x1a3a6b,
+    specular: 0x222244,
+    shininess: 12,
+  });
+  const earth = new THREE.Mesh(sphereGeom, baseMat);
+  globeGroup.add(earth);
+
+  // Load Earth texture with CORS-safe URL. If it fails, we keep the blue sphere.
+  const loader = new THREE.TextureLoader();
+  loader.setCrossOrigin("anonymous");
+  loader.load(
+    "https://threejs.org/examples/textures/planets/earth_atmos_2048.jpg",
+    (tex) => {
+      earth.material = new THREE.MeshPhongMaterial({
+        map: tex,
+        specular: 0x333344,
+        shininess: 10,
+      });
+      earth.material.needsUpdate = true;
+    },
+    undefined,
+    () => {
+      console.warn("Earth texture failed to load - using fallback material.");
+    }
+  );
+
+  // Atmosphere glow (backside shader-ish using a slightly larger sphere)
+  const atmosGeom = new THREE.SphereGeometry(GLOBE_RADIUS * 1.06, 64, 64);
+  const atmosMat = new THREE.ShaderMaterial({
+    uniforms: {},
+    vertexShader: `
+      varying vec3 vNormal;
+      void main() {
+        vNormal = normalize(normalMatrix * normal);
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `,
+    fragmentShader: `
+      varying vec3 vNormal;
+      void main() {
+        float intensity = pow(0.62 - dot(vNormal, vec3(0.0, 0.0, 1.0)), 2.0);
+        gl_FragColor = vec4(0.42, 0.76, 1.0, 1.0) * intensity;
+      }
+    `,
+    blending: THREE.AdditiveBlending,
+    side: THREE.BackSide,
+    transparent: true,
+  });
+  const atmosphere = new THREE.Mesh(atmosGeom, atmosMat);
+  scene.add(atmosphere);
+
+  // ----------------------------------------------------------------------
+  //  HOTSPOT MARKERS
+  // ----------------------------------------------------------------------
+  function latLonToVec3(lat, lon, radius) {
+    const phi = (90 - lat) * (Math.PI / 180);
+    const theta = (lon + 180) * (Math.PI / 180);
+    return new THREE.Vector3(
+      -radius * Math.sin(phi) * Math.cos(theta),
+       radius * Math.cos(phi),
+       radius * Math.sin(phi) * Math.sin(theta)
+    );
+  }
+
+  // Build a reusable sprite texture for the glow halo
+  function makeGlowTexture() {
+    const size = 128;
+    const c = document.createElement("canvas");
+    c.width = c.height = size;
+    const ctx = c.getContext("2d");
+    const g = ctx.createRadialGradient(size/2, size/2, 0, size/2, size/2, size/2);
+    g.addColorStop(0.0, "rgba(255,211,122,1)");
+    g.addColorStop(0.25, "rgba(255,170,60,0.8)");
+    g.addColorStop(0.55, "rgba(255,140,40,0.25)");
+    g.addColorStop(1.0, "rgba(255,140,40,0)");
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, size, size);
+    const tex = new THREE.CanvasTexture(c);
+    tex.needsUpdate = true;
+    return tex;
+  }
+  const glowTex = makeGlowTexture();
+
+  const markers = []; // { mesh, halo, data }
+  HOTSPOTS.forEach((h) => {
+    const pos = latLonToVec3(h.lat, h.lon, GLOBE_RADIUS * 1.01);
+
+    // Small solid pin
+    const pinGeom = new THREE.SphereGeometry(0.012, 16, 16);
+    const pinMat = new THREE.MeshBasicMaterial({ color: 0xffd37a });
+    const pin = new THREE.Mesh(pinGeom, pinMat);
+    pin.position.copy(pos);
+    pin.userData = h;
+
+    // Glow halo sprite
+    const haloMat = new THREE.SpriteMaterial({
+      map: glowTex,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      transparent: true,
+    });
+    const halo = new THREE.Sprite(haloMat);
+    halo.position.copy(pos);
+    halo.scale.set(0.09, 0.09, 0.09);
+
+    globeGroup.add(pin);
+    globeGroup.add(halo);
+    markers.push({ mesh: pin, halo, data: h });
+  });
+
+  // ----------------------------------------------------------------------
+  //  INTERACTION - drag to rotate, scroll to zoom, click to select
+  // ----------------------------------------------------------------------
+  let targetRotY = 0, targetRotX = 0;
+  let rotY = 0, rotX = 0;
+  let isDragging = false;
+  let lastX = 0, lastY = 0;
+  let autoRotate = true;
+  let moved = false;
+
+  canvas.addEventListener("pointerdown", (e) => {
+    isDragging = true; moved = false;
+    lastX = e.clientX; lastY = e.clientY;
+    canvas.setPointerCapture(e.pointerId);
+  });
+  canvas.addEventListener("pointerup", (e) => {
+    isDragging = false;
+    try { canvas.releasePointerCapture(e.pointerId); } catch(_) {}
+    if (!moved) handleClick(e);
+  });
+  canvas.addEventListener("pointermove", (e) => {
+    if (isDragging) {
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
+      targetRotY += dx * 0.005;
+      targetRotX += dy * 0.005;
+      targetRotX = Math.max(-1.2, Math.min(1.2, targetRotX));
+      lastX = e.clientX; lastY = e.clientY;
+      autoRotate = false;
+    }
+    handleHover(e);
+  });
+
+  canvas.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const delta = e.deltaY * 0.001;
+    camera.position.z = Math.max(1.6, Math.min(6, camera.position.z + delta));
+  }, { passive: false });
+
+  const raycaster = new THREE.Raycaster();
+  raycaster.params.Points = { threshold: 0.02 };
+  const mouse = new THREE.Vector2();
+  const tooltip = document.getElementById("tooltip");
+
+  function getPointer(e) {
+    mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+  }
+
+  function pickMarker() {
+    raycaster.setFromCamera(mouse, camera);
+    // Test both pins and halos; pins first for accuracy, then halos as larger targets
+    const pins = markers.map(m => m.mesh);
+    const halos = markers.map(m => m.halo);
+    const hitsPin = raycaster.intersectObjects(pins, false);
+    if (hitsPin.length) return hitsPin[0].object.userData;
+    const hitsHalo = raycaster.intersectObjects(halos, false);
+    if (hitsHalo.length) return hitsHalo[0].object.userData || hitsHalo[0].object.position; // halos don't carry userData; fall back below
+    return null;
+  }
+
+  // We want halos to be clickable too - attach userData to halos:
+  markers.forEach(m => { m.halo.userData = m.data; });
+
+  function handleHover(e) {
+    getPointer(e);
+    const hit = pickMarker();
+    if (hit && hit.name) {
+      tooltip.textContent = hit.name + " - " + hit.city;
+      tooltip.style.left = e.clientX + "px";
+      tooltip.style.top = e.clientY + "px";
+      tooltip.classList.add("show");
+      canvas.style.cursor = "pointer";
+    } else {
+      tooltip.classList.remove("show");
+      canvas.style.cursor = isDragging ? "grabbing" : "grab";
+    }
+  }
+
+  function handleClick(e) {
+    getPointer(e);
+    const hit = pickMarker();
+    if (hit && hit.name) {
+      selectHotspot(hit);
+    }
+  }
+
+  // ----------------------------------------------------------------------
+  //  NEWS FETCH + PANEL
+  // ----------------------------------------------------------------------
+  const titleEl = document.getElementById("country-title");
+  const subEl = document.getElementById("country-sub");
+  const newsEl = document.getElementById("news");
+  const footerNoteEl = document.getElementById("footer-note");
+
+  const STORAGE_KEY = "economic_globe_newsapi_key";
+  const apikeyInput = document.getElementById("apikey");
+  const saveKeyBtn = document.getElementById("save-key");
+
+  function getKey() {
+    try { return localStorage.getItem(STORAGE_KEY) || ""; } catch(_) { return ""; }
+  }
+  function setKey(v) {
+    try {
+      if (v) localStorage.setItem(STORAGE_KEY, v);
+      else localStorage.removeItem(STORAGE_KEY);
+    } catch(_) {}
+  }
+  function refreshFooter() {
+    const hasKey = !!getKey();
+    footerNoteEl.innerHTML = hasKey
+      ? 'Using <b>live NewsAPI</b> feed (business headlines by country). Your key is stored only in this browser.'
+      : 'Using <b>sample headlines</b>. Add a free key from <a href="https://newsapi.org/register" target="_blank" rel="noopener">newsapi.org</a> above for live news.<br />Note: NewsAPI\'s free tier only works from <code>localhost</code>.';
+  }
+
+  // initialize input
+  apikeyInput.value = getKey();
+  refreshFooter();
+  saveKeyBtn.addEventListener("click", () => {
+    setKey(apikeyInput.value.trim());
+    refreshFooter();
+    saveKeyBtn.textContent = apikeyInput.value.trim() ? "Saved" : "Cleared";
+    saveKeyBtn.classList.toggle("cleared", !apikeyInput.value.trim());
+    setTimeout(() => { saveKeyBtn.textContent = "Save"; saveKeyBtn.classList.remove("cleared"); }, 1400);
+  });
+  apikeyInput.addEventListener("keydown", (e) => { if (e.key === "Enter") saveKeyBtn.click(); });
+
+  let selected = null;
+  function selectHotspot(h) {
+    selected = h;
+    titleEl.textContent = h.name;
+    subEl.textContent = h.city + " - business headlines";
+    newsEl.innerHTML = '<div class="status">Loading latest headlines...</div>';
+    const key = getKey();
+    if (key) {
+      fetchLive(h, key);
+    } else {
+      renderArticles(h, (SAMPLE_HEADLINES[h.code] || []), /*isSample*/ true);
+    }
+  }
+
+  async function fetchLive(h, key) {
+    const url = `https://newsapi.org/v2/top-headlines?country=${encodeURIComponent(h.code)}&category=business&pageSize=10&apiKey=${encodeURIComponent(key)}`;
+    try {
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.status !== "ok") {
+        throw new Error(data.message || "NewsAPI error");
+      }
+      const articles = (data.articles || []).map(a => ({
+        source: (a.source && a.source.name) || "NewsAPI",
+        title: a.title,
+        description: a.description,
+        url: a.url,
+        publishedAt: a.publishedAt,
+      })).filter(a => a.title);
+      if (!articles.length) {
+        renderArticles(h, SAMPLE_HEADLINES[h.code] || [], true, "No live articles returned - showing samples.");
+      } else {
+        renderArticles(h, articles, false);
+      }
+    } catch (err) {
+      const msg = String(err && err.message || err);
+      const isCors = /cors|failed to fetch|network/i.test(msg);
+      renderArticles(
+        h,
+        SAMPLE_HEADLINES[h.code] || [],
+        true,
+        isCors
+          ? "Live fetch blocked (CORS). NewsAPI's free tier only works from localhost. Showing samples."
+          : "Live fetch failed: " + msg + ". Showing samples."
+      );
+    }
+  }
+
+  function renderArticles(h, articles, isSample, note) {
+    if (!articles.length) {
+      newsEl.innerHTML = '<div class="status">No headlines available for ' + h.name + '.</div>';
+      return;
+    }
+    const html = [];
+    if (note) html.push('<div class="status error">' + note + '</div>');
+    if (isSample && !note) html.push('<div class="status">Sample headlines (add an API key for live data).</div>');
+    articles.forEach(a => {
+      const when = a.publishedAt ? new Date(a.publishedAt).toLocaleString() : "";
+      html.push(`
+        <${a.url ? 'a class="article" href="'+a.url+'" target="_blank" rel="noopener"' : 'div class="article"'}>
+          <div class="src">${escapeHtml(a.source || "")}</div>
+          <div class="title">${escapeHtml(a.title)}</div>
+          ${a.description ? `<div class="desc">${escapeHtml(a.description)}</div>` : ""}
+          ${when ? `<div class="meta">${escapeHtml(when)}</div>` : ""}
+        </${a.url ? 'a' : 'div'}>
+      `);
+    });
+    newsEl.innerHTML = html.join("");
+  }
+
+  function escapeHtml(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+  }
+
+  // ----------------------------------------------------------------------
+  //  ANIMATION LOOP
+  // ----------------------------------------------------------------------
+  const clock = new THREE.Clock();
+
+  function animate() {
+    requestAnimationFrame(animate);
+    const dt = clock.getDelta();
+    const t = clock.elapsedTime;
+
+    if (autoRotate) targetRotY += 0.05 * dt;
+
+    rotY += (targetRotY - rotY) * 0.12;
+    rotX += (targetRotX - rotX) * 0.12;
+    globeGroup.rotation.y = rotY;
+    globeGroup.rotation.x = rotX;
+
+    // Pulse halos
+    markers.forEach((m, i) => {
+      const phase = t * 2.4 + i * 0.4;
+      const s = 0.085 + 0.025 * (0.5 + 0.5 * Math.sin(phase));
+      m.halo.scale.set(s, s, s);
+      // Highlight selected
+      if (selected && m.data.code === selected.code) {
+        m.halo.material.opacity = 1.0;
+        m.mesh.material.color.setHex(0xffffff);
+        m.halo.scale.multiplyScalar(1.6);
+      } else {
+        m.halo.material.opacity = 0.85;
+        m.mesh.material.color.setHex(0xffd37a);
+      }
+    });
+
+    renderer.render(scene, camera);
+  }
+  animate();
+
+  // Resume auto-rotate after 5s of inactivity
+  let idleTimer = null;
+  function scheduleIdle() {
+    clearTimeout(idleTimer);
+    idleTimer = setTimeout(() => { autoRotate = true; }, 5000);
+  }
+  canvas.addEventListener("pointermove", scheduleIdle);
+  canvas.addEventListener("wheel", scheduleIdle);
+
+  window.addEventListener("resize", () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+  </script>
+</body>
+</html>

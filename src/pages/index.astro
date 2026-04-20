@@ -1,0 +1,65 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { experiments } from '../data/experiments.js';
+---
+<BaseLayout>
+  <section class="hero">
+    <div class="eyebrow">open late — testing in public</div>
+    <h1 class="display">
+      a <span class="word">workshop</span>,<br />
+      <span class="squiggle">not a portfolio.</span>
+    </h1>
+    <p class="lede">
+      This is where Sam prototypes things — interactive demos, design experiments,
+      half-ideas pushed far enough to poke at in a browser. Expect rough edges,
+      strong colors, and the occasional useful thing.
+    </p>
+
+    <div class="marquee" aria-hidden="true">
+      <div class="marquee-inner">
+        <span>ship small things</span><span class="dot">&bull;</span>
+        <span>break them on purpose</span><span class="dot">&bull;</span>
+        <span>show the scaffolding</span><span class="dot">&bull;</span>
+        <span>iterate in public</span><span class="dot">&bull;</span>
+        <span>ship small things</span><span class="dot">&bull;</span>
+        <span>break them on purpose</span><span class="dot">&bull;</span>
+        <span>show the scaffolding</span><span class="dot">&bull;</span>
+        <span>iterate in public</span><span class="dot">&bull;</span>
+      </div>
+    </div>
+  </section>
+
+  <section style="margin-top: 32px;">
+    <div class="row" style="margin-bottom: 18px;">
+      <h2 style="font-family: var(--font-display); font-size: 28px; margin: 0; letter-spacing: -0.02em;">
+        Latest experiments
+      </h2>
+      <span class="spacer"></span>
+      <a
+        href={`${import.meta.env.BASE_URL}experiments`}
+        class="tag outline"
+        style="text-decoration:none; padding: 6px 12px;"
+      >
+        see all &rarr;
+      </a>
+    </div>
+
+    <div class="grid">
+      {experiments.slice(0, 6).map((e) => (
+        <a class={`card is-${e.tone}`} href={`${import.meta.env.BASE_URL}experiments/${e.slug}`}>
+          <div class="stack-md">
+            <div class="meta">
+              {e.tags.slice(0, 3).map((t) => <span class="tag">{t}</span>)}
+            </div>
+            <h3>{e.title}</h3>
+            <p>{e.description}</p>
+          </div>
+          <div class="footer-row">
+            <span>{e.date}</span>
+            <span class="arrow" aria-hidden="true">&rarr;</span>
+          </div>
+        </a>
+      ))}
+    </div>
+  </section>
+</BaseLayout>

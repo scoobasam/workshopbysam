@@ -1,0 +1,108 @@
+---
+import ExperimentLayout from '../../layouts/ExperimentLayout.astro';
+---
+<ExperimentLayout
+  title="Canvas Bloom"
+  description="Click or drag anywhere to bloom particles. A tiny toy built with vanilla canvas and additive blending."
+  tags={['canvas', 'interaction', 'toy']}
+  date="2026-04"
+>
+  <div class="experiment-body" style="padding: 0; position: relative; min-height: 78vh;">
+    <canvas id="bloom-canvas" style="width: 100%; height: 78vh; min-height: 560px; display: block; cursor: crosshair; background: #0a0812;"></canvas>
+    <div style="position:absolute; top: 18px; left: 18px; font-family: var(--font-mono); font-size: 12px; color: #fff; opacity: 0.7; text-transform: uppercase; letter-spacing: 0.12em; pointer-events: none;">
+      click &middot; drag &middot; press C to clear
+    </div>
+  </div>
+
+  <script is:inline>
+    (() => {
+      const canvas = document.getElementById('bloom-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+
+      function resize() {
+        const rect = canvas.getBoundingClientRect();
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+        canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+      }
+      resize();
+      window.addEventListener('resize', resize);
+
+      const particles = [];
+      const MAX = 1200;
+      let mouse = { x: 0, y: 0, down: false };
+      let hueShift = Math.random() * 360;
+
+      function spawn(x, y, n) {
+        for (let i = 0; i < n; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = 0.5 + Math.random() * 3;
+          particles.push({
+            x, y,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            life: 1,
+            decay: 0.006 + Math.random() * 0.012,
+            hue: (hueShift + Math.random() * 80) % 360,
+            size: 1.5 + Math.random() * 3,
+          });
+        }
+        if (particles.length > MAX) particles.splice(0, particles.length - MAX);
+      }
+
+      canvas.addEventListener('pointerdown', (e) => {
+        mouse.down = true;
+        const r = canvas.getBoundingClientRect();
+        const x = (e.clientX - r.left) * (canvas.width / r.width);
+        const y = (e.clientY - r.top) * (canvas.height / r.height);
+        mouse.x = x; mouse.y = y;
+        hueShift = (hueShift + 37) % 360;
+        spawn(x, y, 80);
+      });
+      window.addEventListener('pointerup', () => { mouse.down = false; });
+      canvas.addEventListener('pointermove', (e) => {
+        const r = canvas.getBoundingClientRect();
+        const x = (e.clientX - r.left) * (canvas.width / r.width);
+        const y = (e.clientY - r.top) * (canvas.height / r.height);
+        mouse.x = x; mouse.y = y;
+        if (mouse.down) spawn(x, y, 6);
+      });
+      window.addEventListener('keydown', (e) => {
+        if (e.key.toLowerCase() === 'c') particles.length = 0;
+      });
+
+      function draw() {
+        // fade previous frame
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.fillStyle = 'rgba(10, 8, 18, 0.14)';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // additive particle blend
+        ctx.globalCompositeOperation = 'lighter';
+        for (let i = particles.length - 1; i >= 0; i--) {
+          const p = particles[i];
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vx *= 0.985;
+          p.vy *= 0.985;
+          p.vy += 0.02; // slight gravity
+          p.life -= p.decay;
+          if (p.life <= 0) { particles.splice(i, 1); continue; }
+
+          const alpha = Math.max(0, Math.min(1, p.life));
+          const r = p.size * (0.6 + p.life);
+          const grd = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 6);
+          grd.addColorStop(0, `hsla(${p.hue}, 95%, 65%, ${alpha})`);
+          grd.addColorStop(1, `hsla(${p.hue}, 95%, 65%, 0)`);
+          ctx.fillStyle = grd;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, r * 6, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        requestAnimationFrame(draw);
+      }
+      draw();
+    })();
+  </script>
+</ExperimentLayout>

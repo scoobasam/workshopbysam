@@ -1,0 +1,26 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+<BaseLayout title="About" description="About the workshop and the person behind it.">
+  <section class="hero" style="padding: 32px 0 24px;">
+    <div class="eyebrow">about</div>
+    <h1 class="display" style="font-size: clamp(40px, 8vw, 96px);">
+      <span class="word">hey,</span> I'm Sam.
+    </h1>
+    <div class="prose" style="margin-top: 28px;">
+      <p>
+        This site is a workshop &mdash; a place to try things, learn in public,
+        and put small interactive ideas in front of people before they're "done."
+      </p>
+      <p>
+        Every experiment lives as its own page under <code>/experiments</code>.
+        Some are design-driven, some are code-driven, most are both. If you
+        stumble on a broken one, that probably means I'm mid-iteration.
+      </p>
+      <p>
+        Built with <code>Astro</code> and deployed to GitHub Pages. The source
+        is <a href="#" style="border-bottom: 1.5px dashed var(--muted); text-decoration: none; color: var(--ink);">on GitHub</a>.
+      </p>
+    </div>
+  </section>
+</BaseLayout>

@@ -1,0 +1,156 @@
+---
+import ExperimentLayout from '../../layouts/ExperimentLayout.astro';
+---
+<ExperimentLayout
+  title="Color Field"
+  description="Move your cursor across the canvas. Click to lock a palette, press R to reroll."
+  tags={['design', 'canvas', 'color']}
+  date="2026-04"
+>
+  <div class="experiment-body" style="padding: 0; position: relative; min-height: 78vh;">
+    <canvas id="color-canvas" style="width: 100%; height: 78vh; min-height: 560px; display: block; cursor: crosshair;"></canvas>
+    <div id="hud" style="position:absolute; top: 18px; left: 18px; font-family: var(--font-mono); font-size: 12px; color: #fff; text-transform: uppercase; letter-spacing: 0.12em; opacity: 0.8; pointer-events: none;">
+      drag &middot; click to lock &middot; press R to reroll
+    </div>
+    <div id="swatch" style="position:absolute; bottom: 18px; left: 18px; display: flex; gap: 6px;"></div>
+  </div>
+
+  <section class="prose" style="margin-top: 28px;">
+    <p>
+      Three moving anchor points each drive a color. Pixel values are a soft
+      inverse-distance blend between the anchors in OKLCH-ish space, then gamma
+      corrected. Moving the cursor drags the nearest anchor.
+    </p>
+  </section>
+
+  <script is:inline>
+    (() => {
+      const canvas = document.getElementById('color-canvas');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const swatchEl = document.getElementById('swatch');
+
+      // ----- state -----
+      const anchors = [
+        { x: 0.25, y: 0.3, h: Math.random() * 360, s: 80, l: 60, vx: 0, vy: 0 },
+        { x: 0.70, y: 0.4, h: Math.random() * 360, s: 80, l: 60, vx: 0, vy: 0 },
+        { x: 0.50, y: 0.75, h: Math.random() * 360, s: 80, l: 60, vx: 0, vy: 0 },
+      ];
+      let locked = false;
+      let mouse = { x: 0.5, y: 0.5 };
+      let draggingIdx = -1;
+
+      // ----- resize -----
+      function resize() {
+        const rect = canvas.getBoundingClientRect();
+        const dpr = Math.min(window.devicePixelRatio || 1, 2);
+        canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+        canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+      }
+      resize();
+      window.addEventListener('resize', resize);
+
+      // ----- color helpers -----
+      // hsl -> rgb (0-255)
+      function hslToRgb(h, s, l) {
+        s /= 100; l /= 100;
+        const k = (n) => (n + h / 30) % 12;
+        const a = s * Math.min(l, 1 - l);
+        const f = (n) => l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1));
+        return [Math.round(f(0) * 255), Math.round(f(8) * 255), Math.round(f(4) * 255)];
+      }
+
+      function reroll() {
+        if (locked) return;
+        anchors.forEach((a) => {
+          a.h = Math.random() * 360;
+          a.s = 55 + Math.random() * 45;
+          a.l = 40 + Math.random() * 40;
+        });
+        updateSwatches();
+      }
+
+      function updateSwatches() {
+        swatchEl.innerHTML = '';
+        anchors.forEach((a) => {
+          const [r, g, b] = hslToRgb(a.h, a.s, a.l);
+          const chip = document.createElement('div');
+          chip.style.cssText = `width:28px;height:28px;border-radius:8px;background:rgb(${r},${g},${b});border:1.5px solid rgba(255,255,255,0.8);box-shadow:0 2px 8px rgba(0,0,0,0.25);`;
+          swatchEl.appendChild(chip);
+        });
+      }
+      reroll();
+
+      // ----- input -----
+      canvas.addEventListener('pointerdown', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        mouse.x = (e.clientX - rect.left) / rect.width;
+        mouse.y = (e.clientY - rect.top) / rect.height;
+        // pick nearest anchor within threshold
+        let best = -1, bestD = 0.15;
+        anchors.forEach((a, i) => {
+          const d = Math.hypot(a.x - mouse.x, a.y - mouse.y);
+          if (d < bestD) { bestD = d; best = i; }
+        });
+        draggingIdx = best;
+      });
+      window.addEventListener('pointerup', () => {
+        if (draggingIdx === -1) {
+          // plain click = toggle lock
+          locked = !locked;
+        }
+        draggingIdx = -1;
+      });
+      canvas.addEventListener('pointermove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        mouse.x = (e.clientX - rect.left) / rect.width;
+        mouse.y = (e.clientY - rect.top) / rect.height;
+        if (draggingIdx >= 0) {
+          anchors[draggingIdx].x = Math.max(0, Math.min(1, mouse.x));
+          anchors[draggingIdx].y = Math.max(0, Math.min(1, mouse.y));
+        }
+      });
+      window.addEventListener('keydown', (e) => {
+        if (e.key.toLowerCase() === 'r') reroll();
+      });
+
+      // ----- render loop with gradient approximation -----
+      function draw() {
+        const w = canvas.width, h = canvas.height;
+        // use radialGradient stacks for performance instead of per-pixel loops
+        ctx.globalCompositeOperation = 'source-over';
+        const [r0, g0, b0] = hslToRgb(anchors[0].h, anchors[0].s, anchors[0].l);
+        ctx.fillStyle = `rgb(${r0},${g0},${b0})`;
+        ctx.fillRect(0, 0, w, h);
+
+        ctx.globalCompositeOperation = 'lighter';
+        anchors.forEach((a) => {
+          const [r, g, b] = hslToRgb(a.h, a.s, a.l);
+          const cx = a.x * w, cy = a.y * h;
+          const rad = Math.max(w, h) * 0.75;
+          const g1 = ctx.createRadialGradient(cx, cy, 0, cx, cy, rad);
+          g1.addColorStop(0, `rgba(${r},${g},${b},0.9)`);
+          g1.addColorStop(1, `rgba(${r},${g},${b},0)`);
+          ctx.fillStyle = g1;
+          ctx.fillRect(0, 0, w, h);
+        });
+
+        // Anchor dots
+        ctx.globalCompositeOperation = 'source-over';
+        anchors.forEach((a) => {
+          const cx = a.x * w, cy = a.y * h;
+          ctx.beginPath();
+          ctx.arc(cx, cy, 10, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(255,255,255,0.85)';
+          ctx.fill();
+          ctx.lineWidth = 2;
+          ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+          ctx.stroke();
+        });
+
+        requestAnimationFrame(draw);
+      }
+      draw();
+    })();
+  </script>
+</ExperimentLayout>
