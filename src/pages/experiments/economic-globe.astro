@@ -571,69 +571,101 @@ const title = "Economic News Globe — Workshop by Sam";
     });
   }
 
-  async function fetchGdelt(h) {
-    // Country match: articles FROM the country OR ABOUT the country.
-    // `locationcc:` catches e.g. Reuters writing about Argentina, which
-    // `sourcecountry:` alone would miss.
-    const country = `(sourcecountry:${h.gdelt} OR locationcc:${h.gdelt})`;
+  // Global backoff — if GDELT rate-limits us once, stop hitting them for a while.
+  let gdeltBlockedUntil = 0;
+  const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-    // Wider keyword net than before.
+  async function tryGdeltQuery(q, ts) {
+    const url =
+      "https://api.gdeltproject.org/api/v2/doc/doc" +
+      "?query=" + encodeURIComponent(q) +
+      "&mode=artlist&maxrecords=10&format=json&sort=datedesc&timespan=" + ts;
+    console.debug("[globe] GDELT:", url);
+
+    let res;
+    try {
+      res = await fetch(url);
+    } catch (err) {
+      // Network-level failure OR CORS-manifested-429 (error response has no CORS headers)
+      console.warn("[globe] fetch threw — likely rate-limited:", err && err.message || err);
+      gdeltBlockedUntil = Date.now() + 60_000; // cool off for 1 min
+      return { status: "blocked", articles: [] };
+    }
+
+    if (res.status === 429) {
+      console.warn("[globe] GDELT 429 rate limit — backing off");
+      gdeltBlockedUntil = Date.now() + 60_000;
+      return { status: "blocked", articles: [] };
+    }
+    if (!res.ok) {
+      console.warn("[globe] GDELT HTTP", res.status);
+      return { status: "error", articles: [] };
+    }
+
+    const text = await res.text();
+    let data;
+    try { data = JSON.parse(text); }
+    catch (_) {
+      console.warn("[globe] GDELT non-JSON response");
+      return { status: "error", articles: [] };
+    }
+
+    const articles = (data.articles || [])
+      .filter(a => a.title && a.url)
+      .map(a => ({
+        source: a.domain || a.sourcecountry || "GDELT",
+        title: a.title,
+        description: null,
+        url: a.url,
+        publishedAt: parseGdeltDate(a.seendate),
+        image: a.socialimage || null,
+      }));
+
+    return { status: "ok", articles };
+  }
+
+  async function fetchGdelt(h) {
+    // If we were recently rate-limited, skip straight to samples.
+    if (Date.now() < gdeltBlockedUntil) {
+      return {
+        articles: SAMPLE_HEADLINES[h.code] || [],
+        isSample: true,
+        note: `GDELT is rate-limiting the browser — showing samples. Try again in a minute.`,
+      };
+    }
+
     const econ =
       '(economy OR economic OR markets OR finance OR financial OR inflation ' +
       'OR business OR trade OR "central bank" OR stocks OR currency OR GDP ' +
       'OR "interest rate" OR bank OR bond OR investment OR recession)';
 
-    // Two query tiers: first economic-filtered, then any news from/about the
-    // country. Whichever one returns articles first wins.
-    const tiers = [
-      { q: `${country} ${econ}`, note: null },
-      { q: country,              note: `No recent economic coverage — showing general news from ${h.name}.` },
-    ];
-
-    for (let i = 0; i < tiers.length; i++) {
-      const { q, note } = tiers[i];
-      const url =
-        "https://api.gdeltproject.org/api/v2/doc/doc" +
-        "?query=" + encodeURIComponent(q) +
-        "&mode=artlist&maxrecords=10&format=json&sort=datedesc&timespan=2w";
-
-      // Helpful for debugging from devtools — per-country query URL + tier.
-      console.debug(`[globe] ${h.name} tier ${i + 1}:`, url);
-
-      try {
-        const res = await fetch(url);
-        if (!res.ok) {
-          console.warn(`[globe] ${h.name} HTTP ${res.status}`);
-          continue;
-        }
-        const text = await res.text();
-        let data;
-        try { data = JSON.parse(text); }
-        catch (_) {
-          console.warn(`[globe] ${h.name} non-JSON response (likely rate-limited)`);
-          continue;
-        }
-
-        const articles = (data.articles || [])
-          .filter(a => a.title && a.url)
-          .map(a => ({
-            source: a.domain || a.sourcecountry || "GDELT",
-            title: a.title,
-            description: null,           // GDELT artlist carries no descriptions
-            url: a.url,
-            publishedAt: parseGdeltDate(a.seendate),
-            image: a.socialimage || null,
-          }));
-
-        if (articles.length) {
-          return { articles, isSample: false, note };
-        }
-      } catch (err) {
-        console.warn(`[globe] ${h.name} fetch error:`, err && err.message || err);
-      }
+    // Tier 1: country-sourced + economic keywords, last 2 weeks.
+    const t1 = await tryGdeltQuery(`sourcecountry:${h.gdelt} ${econ}`, "2w");
+    if (t1.status === "blocked") {
+      return {
+        articles: SAMPLE_HEADLINES[h.code] || [],
+        isSample: true,
+        note: `GDELT is rate-limiting the browser — showing samples.`,
+      };
+    }
+    if (t1.articles.length) {
+      return { articles: t1.articles, isSample: false, note: null };
     }
 
-    // Both tiers came up empty — fall back to the curated sample headlines.
+    // Brief pause so we don't trip the rate limiter on the fallback.
+    await sleep(750);
+
+    // Tier 2: country-sourced, any topic, last 2 weeks.
+    const t2 = await tryGdeltQuery(`sourcecountry:${h.gdelt}`, "2w");
+    if (t2.articles.length) {
+      return {
+        articles: t2.articles,
+        isSample: false,
+        note: `No recent economic coverage from ${h.name} — showing general local news.`,
+      };
+    }
+
+    // Genuinely nothing — fall back to samples.
     return {
       articles: SAMPLE_HEADLINES[h.code] || [],
       isSample: true,
