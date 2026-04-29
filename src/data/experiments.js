@@ -9,7 +9,7 @@ export const experiments = [
     slug: 'economic-globe',
     title: 'Economic News Globe',
     description:
-      'Rotatable 3D Earth with glowing hotspots on 22 major economies. Click one to load that country\u2019s latest business headlines.',
+      'Rotatable 3D Earth with glowing hotspots on 22 major economies. Click one to load that country’s latest business headlines.',
     tags: ['three.js', 'data viz', 'news api'],
     date: '2026-04',
     tone: 'sky',
@@ -39,5 +39,13 @@ export const experiments = [
   tags: ["color", "lighting", "hex value", "dmx"],
   date: "2026-04",
   tone: "white",
+},
+{
+  slug: "payoff-lab",
+  title: "Payoff Lab",
+  description: "Stack option legs — calls, puts, spreads, condors — and watch the combined P&L curve emerge at expiration. Drag the strikes, read off the breakevens.",
+  tags: ["finance", "options", "svg"],
+  date: "2026-04",
+  tone: "violet",
 },
 ];
