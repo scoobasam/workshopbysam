@@ -1,35 +1,36 @@
 ---
+// src/pages/experiments/index.astro
+// Standalone /experiments page. Same grid as the homepage, but framed
+// as a dedicated index rather than the welcome page. Skip this file if
+// you don't currently have an /experiments index in the live site.
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import ExperimentCard from '../../components/ExperimentCard.astro';
 import { experiments } from '../../data/experiments.js';
+
+const count = experiments.length === 1 ? '1 work' : `${experiments.length} works`;
 ---
-<BaseLayout title="Experiments" description="Interactive demos and design explorations.">
-  <section class="hero" style="padding: 32px 0 24px;">
-    <div class="eyebrow">index</div>
-    <h1 class="display" style="font-size: clamp(40px, 8vw, 96px);">
-      the <span class="word">experiments</span>.
-    </h1>
-    <p class="lede">
-      Every experiment is a self-contained page. Poke at them. Break them. Steal the ideas.
-    </p>
+<BaseLayout title="Experiments">
+  <section class="page-header">
+    <p class="eyebrow">Index</p>
+    <h1>Experiments</h1>
+    <p class="lede">Everything currently in the lab. Hover a card to follow it through.</p>
   </section>
 
-  <section style="margin-top: 20px;">
-    <div class="grid">
-      {experiments.map((e) => (
-        <a class={`card is-${e.tone}`} href={`${import.meta.env.BASE_URL}experiments/${e.slug}`}>
-          <div class="stack-md">
-            <div class="meta">
-              {e.tags.map((t) => <span class="tag">{t}</span>)}
-            </div>
-            <h3>{e.title}</h3>
-            <p>{e.description}</p>
-          </div>
-          <div class="footer-row">
-            <span>{e.date}</span>
-            <span class="arrow" aria-hidden="true">&rarr;</span>
-          </div>
-        </a>
-      ))}
-    </div>
-  </section>
+  <div class="count-row">
+    <span class="count-meta">{count}</span>
+    <span class="count-meta">All time</span>
+  </div>
+
+  <div class="grid">
+    {experiments.map((exp, i) => (
+      <ExperimentCard
+        slug={exp.slug}
+        title={exp.title}
+        description={exp.description}
+        tags={exp.tags}
+        tone={exp.tone}
+        index={i + 1}
+      />
+    ))}
+  </div>
 </BaseLayout>

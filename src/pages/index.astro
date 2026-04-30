@@ -1,65 +1,48 @@
 ---
+// src/pages/index.astro
+// Homepage — hero + experiments grid. Reads from src/data/experiments.js
+// so adding a new experiment to that file makes it appear here automatically.
 import BaseLayout from '../layouts/BaseLayout.astro';
+import ExperimentCard from '../components/ExperimentCard.astro';
 import { experiments } from '../data/experiments.js';
+
+// Latest "updated" stamp, derived from experiment dates (YYYY-MM).
+const latest = [...experiments].sort((a, b) => b.date.localeCompare(a.date))[0];
+const [yyyy, mm] = (latest?.date ?? '2026-04').split('-');
+const monthShort = new Date(Number(yyyy), Number(mm) - 1, 1).toLocaleString('en', { month: 'short' });
+const updated = `${monthShort} ${yyyy}`;
+
+const entry = String(experiments.length).padStart(3, '0');
+const count = experiments.length === 1 ? '1 work' : `${experiments.length} works`;
 ---
-<BaseLayout>
+<BaseLayout title="Workshop by Sam — a small loft for code that wonders">
   <section class="hero">
-    <div class="eyebrow">open late — testing in public</div>
-    <h1 class="display">
-      a <span class="word">workshop</span>,<br />
-      <span class="squiggle">not a portfolio.</span>
-    </h1>
-    <p class="lede">
-      This is where Sam prototypes things — interactive demos, design experiments,
-      half-ideas pushed far enough to poke at in a browser. Expect rough edges,
-      strong colors, and the occasional useful thing.
-    </p>
-
-    <div class="marquee" aria-hidden="true">
-      <div class="marquee-inner">
-        <span>ship small things</span><span class="dot">&bull;</span>
-        <span>break them on purpose</span><span class="dot">&bull;</span>
-        <span>show the scaffolding</span><span class="dot">&bull;</span>
-        <span>iterate in public</span><span class="dot">&bull;</span>
-        <span>ship small things</span><span class="dot">&bull;</span>
-        <span>break them on purpose</span><span class="dot">&bull;</span>
-        <span>show the scaffolding</span><span class="dot">&bull;</span>
-        <span>iterate in public</span><span class="dot">&bull;</span>
-      </div>
-    </div>
+    <p class="eyebrow">Lab notebook · entry {entry}</p>
+    <h1>A small loft<br />for code that <span class="warm">wonders</span>.</h1>
+    <p class="lede"><strong>Experiments</strong> in motion, color, and the strange edge between data and feeling. Iterating in public, breaking things on purpose, occasionally shipping something I love.</p>
   </section>
 
-  <section style="margin-top: 32px;">
-    <div class="row" style="margin-bottom: 18px;">
-      <h2 style="font-family: var(--font-display); font-size: 28px; margin: 0; letter-spacing: -0.02em;">
-        Latest experiments
-      </h2>
-      <span class="spacer"></span>
-      <a
-        href={`${import.meta.env.BASE_URL}experiments`}
-        class="tag outline"
-        style="text-decoration:none; padding: 6px 12px;"
-      >
-        see all &rarr;
-      </a>
-    </div>
+  <div class="section-head">
+    <span class="rule" aria-hidden="true"></span>
+    <h2>Currently in the lab</h2>
+    <span class="rule" aria-hidden="true"></span>
+  </div>
 
-    <div class="grid">
-      {experiments.slice(0, 6).map((e) => (
-        <a class={`card is-${e.tone}`} href={`${import.meta.env.BASE_URL}experiments/${e.slug}`}>
-          <div class="stack-md">
-            <div class="meta">
-              {e.tags.slice(0, 3).map((t) => <span class="tag">{t}</span>)}
-            </div>
-            <h3>{e.title}</h3>
-            <p>{e.description}</p>
-          </div>
-          <div class="footer-row">
-            <span>{e.date}</span>
-            <span class="arrow" aria-hidden="true">&rarr;</span>
-          </div>
-        </a>
-      ))}
-    </div>
-  </section>
+  <div class="count-row">
+    <span class="count-meta">{count}</span>
+    <span class="count-meta">Updated {updated}</span>
+  </div>
+
+  <div class="grid">
+    {experiments.map((exp, i) => (
+      <ExperimentCard
+        slug={exp.slug}
+        title={exp.title}
+        description={exp.description}
+        tags={exp.tags}
+        tone={exp.tone}
+        index={i + 1}
+      />
+    ))}
+  </div>
 </BaseLayout>
